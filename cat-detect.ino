@@ -1,4 +1,5 @@
 #include <LiquidCrystal.h>
+#include <TimeLib.h>
 
 #define BUTTON1 8
 #define BUTTON2 9
@@ -13,6 +14,17 @@
 #define D7 5
 
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
+
+byte upArrow[8] = {
+	0b00000,
+	0b00100,
+	0b01110,
+	0b11111,
+	0b00000,
+	0b00000,
+	0b00000,
+	0b00000
+};
 
 bool buttons[2] = {0, 0};
 bool lastButtons[2] = {0, 0};
@@ -39,6 +51,8 @@ void setup() {
   lcd.begin(16,2);
   lcd.print("Hello");
 
+  lcd.createChar(0, upArrow);
+
   int currTimeDigit = 0;
 
 
@@ -62,7 +76,7 @@ void setup() {
 
     lcd.clear();
     lcd.setCursor(0, 0);
-    String timeString = "";
+    String timeString = "Time: ";
     timeString += clockDigits[0];
     timeString += clockDigits[1];
     timeString += ":";
@@ -71,9 +85,16 @@ void setup() {
     timeString += " ";
     timeString += clockDigits[4] ? "PM" : "AM";
     lcd.print(timeString);
+
+    lcd.setCursor(currTimeDigit*3/2+6, 1);
+    lcd.write((byte)0);
     
     delay(10);
   }
+
+  int hr = clockDigits[0] * 10 + clockDigits[1] + (clockDigits[4] ? 12 : 0);
+  int min = clockDigits[2] * 10 + clockDigits[3];
+  setTime(hr, min, 0, 0, 0, 0);
 
 }
 
@@ -89,7 +110,9 @@ void loop() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Status");
+  // lcd.print("Status");
+  String timeString = String("") + hour() + ":" + minute() + ":" + second();
+  lcd.print(timeString);
   lcd.setCursor(0, 1);
   lcd.print(text);
   delay(10);
