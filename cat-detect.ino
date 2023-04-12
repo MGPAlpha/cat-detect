@@ -14,13 +14,67 @@
 
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 
+bool buttons[2] = {0, 0};
+bool lastButtons[2] = {0, 0};
+bool justPressedButtons[2] = {0, 0};
+
+void updateButtons() {
+  lastButtons[0] = buttons[0];
+  lastButtons[1] = buttons[1];
+  buttons[0] = !digitalRead(BUTTON1);
+  buttons[1] = !digitalRead(BUTTON2);
+  justPressedButtons[0] = buttons[0] && !lastButtons[0]; 
+  justPressedButtons[1] = buttons[1] && !lastButtons[1]; 
+}
+
 void setup() {
+
+  pinMode(BUTTON1, INPUT_PULLUP);
+  pinMode(BUTTON2, INPUT_PULLUP);
+
+  int clockDigits[5] = {0, 0, 0, 0, 0}; // H1, H0, M1, M0, AM/PM
+  int clockMaxes[5] = {1, 9, 5, 9, 1};
+
   // put your setup code here, to run once:
   lcd.begin(16,2);
   lcd.print("Hello");
 
-  pinMode(BUTTON1, INPUT_PULLUP);
-  pinMode(BUTTON2, INPUT_PULLUP);
+  int currTimeDigit = 0;
+
+
+  while (currTimeDigit < 5) {
+    updateButtons();
+
+    if (justPressedButtons[0]) {
+      
+      int currDigit = clockDigits[currTimeDigit];
+      int maxDigit = clockMaxes[currTimeDigit];
+      currDigit++;
+      if (currDigit > maxDigit) currDigit = 0;
+      clockDigits[currTimeDigit] = currDigit;
+
+    }
+
+    if (justPressedButtons[1]) {
+      currTimeDigit++;
+      if (clockDigits[0] > 0) clockMaxes[1] = 2;
+    }
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    String timeString = "";
+    timeString += clockDigits[0];
+    timeString += clockDigits[1];
+    timeString += ":";
+    timeString += clockDigits[2];
+    timeString += clockDigits[3];
+    timeString += " ";
+    timeString += clockDigits[4] ? "PM" : "AM";
+    lcd.print(timeString);
+    
+    delay(10);
+  }
+
 }
 
 void loop() {
