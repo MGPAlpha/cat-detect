@@ -105,7 +105,9 @@ void setup() {
     delay(10);
   }
 
-  int hr = clockDigits[0] * 10 + clockDigits[1] + (clockDigits[4] ? 12 : 0);
+  int hr = clockDigits[0] * 10 + clockDigits[1];
+  if (hr == 12) hr = 0;
+  hr += (clockDigits[4] ? 12 : 0);
   int min = clockDigits[2] * 10 + clockDigits[3];
   setTime(hr, min, 0, 0, 0, 0);
 
@@ -120,22 +122,22 @@ void loop() {
   updateButtons();
   int motion = digitalRead(MOTION);
   
-  // put your main code here, to run repeatedly:
-  String text = "";
-  text += "B1 ";
-  text += buttons[0];
-  text += " B2 ";
-  text += buttons[1];
-  text += " M ";
-  text += motion;
 
   lcd.clear();
-  lcd.setCursor(0, 0);
   // lcd.print("Status");
-  String timeString = String("") + hour() + ":" + minute() + ":" + second();
-  lcd.print(timeString);
-  lcd.setCursor(0, 1);
-  lcd.print(text);
+  if (currentlyDetected) {
+    lcd.setCursor(0, 0);
+    lcd.print("Cat is");
+    lcd.setCursor(0, 1);
+    lcd.print("present");
+  } else if (lastCatTimeIndex >= 0) {
+    lcd.setCursor(0, 0);
+    lcd.print("Last seen");
+    lcd.setCursor(0, 1);
+    String timeString = createTimeString(catTimes[lastCatTimeIndex].endStamp);
+    lcd.print(timeString);
+  }
+
   delay(10);
 
   if (!currentlyDetected && motion) {
@@ -162,5 +164,23 @@ void loop() {
         lastCatTimeIndex -= CAT_TIMES_START_SIZE;        
       }
     }
+    catTimes[lastCatTimeIndex] = currentDetection;
   }
+}
+
+String createTimeString(long stamp) {
+  int hours = hour(stamp);
+  int minutes = minute(stamp);
+  bool pm = hours >= 12;
+  if (pm) {
+    hours -= 12;
+  }
+  if (hours == 0) hours = 12;
+  String hourStr = String(hours);
+  String minuteStr = String(minutes);
+  String pmStr = pm ? "PM" : "AM";
+  if (hourStr.length() == 1) hourStr = String("0") + hourStr;
+  if (minuteStr.length() == 1) minuteStr = String("0") + minuteStr;
+  String out = hourStr + ":" + minuteStr + " " + pmStr;
+  return out;
 }
