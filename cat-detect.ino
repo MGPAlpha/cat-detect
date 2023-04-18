@@ -26,6 +26,19 @@ byte upArrow[8] = {
 	0b00000
 };
 
+typedef struct cat_time {
+  long startStamp;
+  long endStamp;
+} CatTime;
+
+#define CAT_TIMES_START_SIZE 20
+int catTimesSize = CAT_TIMES_START_SIZE;
+CatTime *catTimes;
+int lastCatTimeIndex = -1;
+
+bool currentlyDetected = false;
+CatTime currentDetection;
+
 bool buttons[2] = {0, 0};
 bool lastButtons[2] = {0, 0};
 bool justPressedButtons[2] = {0, 0};
@@ -96,17 +109,25 @@ void setup() {
   int min = clockDigits[2] * 10 + clockDigits[3];
   setTime(hr, min, 0, 0, 0, 0);
 
+  catTimes = malloc(catTimesSize * sizeof(CatTime));
+
 }
 
+
+
 void loop() {
+  
+  updateButtons();
+  int motion = digitalRead(MOTION);
+  
   // put your main code here, to run repeatedly:
   String text = "";
   text += "B1 ";
-  text += digitalRead(BUTTON1);
+  text += buttons[0];
   text += " B2 ";
-  text += digitalRead(BUTTON2);
+  text += buttons[1];
   text += " M ";
-  text += digitalRead(MOTION);
+  text += motion;
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -116,4 +137,30 @@ void loop() {
   lcd.setCursor(0, 1);
   lcd.print(text);
   delay(10);
+
+  if (!currentlyDetected && motion) {
+    currentlyDetected = true;
+    currentDetection.startStamp = now();
+    currentDetection.endStamp = 0;
+  }
+  if (currentlyDetected && !motion) {
+    currentlyDetected = false;
+    currentDetection.endStamp = now();
+
+    lastCatTimeIndex++;
+    if (lastCatTimeIndex >= catTimesSize) {
+      int newCatTimesSize = 2 * catTimesSize;
+      int newCatTimes = realloc(catTimes, newCatTimesSize * sizeof(CatTime));
+      if (newCatTimes) {
+        // Complete Realloc
+        catTimes = newCatTimes;
+        catTimesSize = newCatTimesSize;
+      } else {
+        for (int i = 0; i < catTimesSize - CAT_TIMES_START_SIZE; i++) {
+          catTimes[i] = catTimes[i + CAT_TIMES_START_SIZE];
+        }
+        lastCatTimeIndex -= CAT_TIMES_START_SIZE;        
+      }
+    }
+  }
 }
