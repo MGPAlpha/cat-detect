@@ -1,5 +1,6 @@
 #include <LiquidCrystal.h>
 #include <TimeLib.h>
+#include <Servo.h>
 
 #define BUTTON1 8
 #define BUTTON2 9
@@ -12,6 +13,10 @@
 #define D5 3
 #define D6 4
 #define D7 5
+
+#define DISPENSER 6
+
+Servo dispenser;
 
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 
@@ -56,6 +61,8 @@ void setup() {
 
   pinMode(BUTTON1, INPUT_PULLUP);
   pinMode(BUTTON2, INPUT_PULLUP);
+
+  dispenser.attach(DISPENSER);
 
   int clockDigits[5] = {0, 0, 0, 0, 0}; // H1, H0, M1, M0, AM/PM
   int clockMaxes[5] = {1, 9, 5, 9, 1};
@@ -122,10 +129,24 @@ void loop() {
   updateButtons();
   int motion = digitalRead(MOTION);
   
+  bool seenRecently = currentlyDetected;
+  if (!seenRecently && lastCatTimeIndex >= 0) {
+    long currTime = now();
+    long lastSeen = catTimes[lastCatTimeIndex].endStamp;
+    long timeSince = currTime - lastSeen;
+    if (timeSince > 5 * 60 * 1000) { // if last 5 mins
+      seenRecently = true;
+    }
+  }
 
   lcd.clear();
   // lcd.print("Status");
-  if (currentlyDetected) {
+  if (seenRecently && millis()/2000 % 2) {
+    lcd.setCursor(0, 0);
+    lcd.print("Press for");
+    lcd.setCursor(0, 1);
+    lcd.print("Treat");
+  } else if (currentlyDetected) {
     lcd.setCursor(0, 0);
     lcd.print("Cat is");
     lcd.setCursor(0, 1);
@@ -165,6 +186,14 @@ void loop() {
       }
     }
     catTimes[lastCatTimeIndex] = currentDetection;
+  }
+
+  if (seenRecently && (justPressedButtons[0] || justPressedButtons[1])) {
+    dispenser.write(0);
+    delay(1000);
+    dispenser.write(180);
+    delay(1000);
+    dispenser.write(0);
   }
 }
 
