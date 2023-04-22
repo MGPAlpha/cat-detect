@@ -16,6 +16,24 @@
 
 #define DISPENSER 6
 
+#define DISP_OPEN 0
+#define DISP_CLOSED 90
+
+#define USE_BT
+
+#ifdef USE_BT
+
+#include <SoftwareSerial.h>
+#define BT_RX 7
+#define BT_TX 10
+#define BT_STATE 13
+
+SoftwareSerial Bluetooth(BT_TX, BT_RX);
+
+#endif
+
+
+
 Servo dispenser;
 
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
@@ -59,10 +77,19 @@ void updateButtons() {
 
 void setup() {
 
+  #ifdef USE_BT
+  Bluetooth.begin(38400);
+  pinMode(BT_STATE, INPUT);
+  #else
+  pinMode(MOTION, INPUT);
+  #endif
+
   pinMode(BUTTON1, INPUT_PULLUP);
   pinMode(BUTTON2, INPUT_PULLUP);
 
   dispenser.attach(DISPENSER);
+
+  dispenser.write(DISP_CLOSED);
 
   int clockDigits[5] = {0, 0, 0, 0, 0}; // H1, H0, M1, M0, AM/PM
   int clockMaxes[5] = {1, 9, 5, 9, 1};
@@ -120,15 +147,45 @@ void setup() {
 
   catTimes = malloc(catTimesSize * sizeof(CatTime));
 
+  #ifdef USE_BT
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Waiting for");
+  lcd.setCursor(0, 1);
+  lcd.print("Bluetooth");
+  delay(750);
+
+  int btState = LOW;
+  while (!btState) {
+    btState = digitalRead(BT_STATE);
+  }
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Bluetooth");
+  lcd.setCursor(0, 1);
+  lcd.print("Connected");  
+  delay(750);
+  
+  #endif
+
 }
 
-
+int motion = LOW;
 
 void loop() {
   
   updateButtons();
-  int motion = digitalRead(MOTION);
-  
+
+  #ifdef USE_BT
+  if (Bluetooth.available()) {    
+    motion = Bluetooth.read();
+  }
+  #else
+  motion = digitalRead(MOTION);
+  #endif
+
   bool seenRecently = currentlyDetected;
   if (!seenRecently && lastCatTimeIndex >= 0) {
     long currTime = now();
@@ -189,11 +246,11 @@ void loop() {
   }
 
   if (seenRecently && (justPressedButtons[0] || justPressedButtons[1])) {
-    dispenser.write(0);
+    dispenser.write(DISP_CLOSED);
     delay(1000);
-    dispenser.write(180);
+    dispenser.write(DISP_OPEN);
     delay(1000);
-    dispenser.write(0);
+    dispenser.write(DISP_CLOSED);
   }
 }
 
