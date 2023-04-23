@@ -17,18 +17,18 @@
 #define DISPENSER 6
 
 #define DISP_OPEN 0
-#define DISP_CLOSED 90
+#define DISP_CLOSED 30
 
 #define USE_BT
 
 #ifdef USE_BT
 
-#include <SoftwareSerial.h>
-#define BT_RX 7
-#define BT_TX 10
+// #include <SoftwareSerial.h>
+// #define BT_RX A0
+// #define BT_TX A1
 #define BT_STATE 13
 
-SoftwareSerial Bluetooth(BT_TX, BT_RX);
+// SoftwareSerial Bluetooth(BT_TX, BT_RX);
 
 #endif
 
@@ -78,7 +78,7 @@ void updateButtons() {
 void setup() {
 
   #ifdef USE_BT
-  Bluetooth.begin(38400);
+  // Bluetooth.begin(38400);
   pinMode(BT_STATE, INPUT);
   #else
   pinMode(MOTION, INPUT);
@@ -170,6 +170,8 @@ void setup() {
   
   #endif
 
+  Serial.begin(38400);
+
 }
 
 int motion = LOW;
@@ -179,8 +181,8 @@ void loop() {
   updateButtons();
 
   #ifdef USE_BT
-  if (Bluetooth.available()) {    
-    motion = Bluetooth.read();
+  if (Serial.available()) {    
+    motion = Serial.read();
   }
   #else
   motion = digitalRead(MOTION);
@@ -246,6 +248,7 @@ void loop() {
   }
 
   if (seenRecently && (justPressedButtons[0] || justPressedButtons[1])) {
+    Serial.println("attempting to dispense");
     dispenser.write(DISP_CLOSED);
     delay(1000);
     dispenser.write(DISP_OPEN);

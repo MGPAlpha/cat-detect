@@ -8,7 +8,7 @@ SoftwareSerial Bluetooth(6, 5, false);
 
 void setup() {
 
-  pinMode(SENSOR, INPUT_PULLUP);
+  pinMode(SENSOR, INPUT);
   Serial.begin(9600);
   Bluetooth.begin(9600 << BAUD_FACTOR);
 }
@@ -20,6 +20,7 @@ void loop() {
   int sensorValue = digitalRead(SENSOR);
   
   Bluetooth.write(sensorValue);
+  Serial.println(sensorValue);
 
   // Bluetooth.println(n);
   // Serial.println(n);
