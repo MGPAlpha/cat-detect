@@ -21,6 +21,7 @@
 
 #define USE_BT
 
+
 #ifdef USE_BT
 
 // #include <SoftwareSerial.h>
@@ -31,7 +32,6 @@
 // SoftwareSerial Bluetooth(BT_TX, BT_RX);
 
 #endif
-
 
 
 Servo dispenser;
@@ -48,6 +48,98 @@ byte upArrow[8] = {
 	0b00000,
 	0b00000
 };
+
+#define EMPTY_FRAME {0, 0, 0, 0, 0, 0, 0, 0}
+
+typedef struct anim_frame {
+  byte left[8];
+  byte right[8];
+} AnimFrame;
+
+typedef struct cat_animation {
+  AnimFrame* frames;
+  int frameCount;
+  bool reversed;
+} CatAnimation;
+
+#define MAKE_CAT_ANIM(frames, reversed) ((CatAnimation){(frames), sizeof(frames), (reversed)})
+
+AnimFrame walkFrames[] = {
+  (AnimFrame){
+    EMPTY_FRAME,
+    {B00000, B00001, B00001, B00001, B00000, B00000, B00001, B00001}
+  },
+  (AnimFrame){
+    EMPTY_FRAME,
+    {B00000, B00010, B00011, B00011, B00001, B00001, B00001, B00010}
+  },
+  (AnimFrame){
+    EMPTY_FRAME,
+    {B00000, B00101, B00111, B00111, B00011, B00011, B00011, B00010}
+  },
+  (AnimFrame){
+    EMPTY_FRAME,
+    {B00000, B01010, B01110, B01110, B00111, B00111, B00110, B00101}
+  },
+  (AnimFrame){
+    EMPTY_FRAME,
+    {B00000, B10100, B11100, B11100, B01111, B01111, B01100, B10100}
+  },
+  (AnimFrame){
+    {B00000, B00001, B00001, B00001, B00000, B00000, B00000, B00001},
+    {B00000, B01000, B11000, B11000, B11111, B11111, B11001, B01010}
+  },
+  (AnimFrame){
+    {B00000, B00010, B00011, B00011, B00001, B00001, B00010, B00010},
+    {B00000, B10000, B10000, B10000, B11111, B11111, B10011, B10100}
+  },
+  (AnimFrame){
+    {B00000, B00101, B00111, B00111, B00011, B00011, B00011, B00100},
+    {B00000, B00000, B00010, B00001, B11111, B11110, B00110, B10101}
+  },
+  (AnimFrame){
+    {B00000, B01010, B01110, B01110, B00111, B00111, B00110, B00101},
+    {B00000, B00000, B00100, B00010, B11110, B11100, B01100, B01010}
+  },
+  (AnimFrame){
+    {B00000, B01010, B01110, B01110, B00111, B00111, B00110, B01010},
+    {B00000, B00000, B00100, B00010, B11110, B11100, B01100, B10100}
+  }
+};
+
+CatAnimation walkInAnim = MAKE_CAT_ANIM(walkFrames, false);
+CatAnimation walkOutAnim = MAKE_CAT_ANIM(walkFrames, true);
+
+AnimFrame idleFrames[] = {
+  (AnimFrame){
+    {B00000, B01010, B01110, B01110, B00111, B00111, B00110, B00110},
+    {B00000, B00000, B00100, B00010, B11110, B11100, B01100, B01100}
+  },
+  (AnimFrame){
+    {B00000, B00000, B01010, B01110, B01110, B00111, B00111, B01010},
+    {B00000, B00000, B00000, B00010, B00010, B11110, B11100, B01100}
+  }
+};
+
+CatAnimation idleAnim = MAKE_CAT_ANIM(idleFrames, false);
+
+AnimFrame emptyFrames[] = {
+  (AnimFrame){
+    EMPTY_FRAME,
+    EMPTY_FRAME
+  },
+  (AnimFrame){
+    EMPTY_FRAME,
+    EMPTY_FRAME
+  }
+};
+
+CatAnimation emptyAnim = MAKE_CAT_ANIM(emptyFrames, false);
+
+CatAnimation *currentAnim = &emptyAnim;
+int currAnimFrame = 0;
+#define ANIM_FRAME_DELAY 500
+long animTimer = 0; 
 
 typedef struct cat_time {
   long startStamp;
@@ -218,6 +310,8 @@ void loop() {
     lcd.print(timeString);
   }
 
+  updateAnim(millis());
+
   delay(10);
 
   if (!currentlyDetected && motion) {
@@ -255,6 +349,51 @@ void loop() {
     delay(1000);
     dispenser.write(DISP_CLOSED);
   }
+}
+
+long lastAnimUpdate = 0;
+void updateAnim(long t) {
+  if (!lastAnimUpdate) lastAnimUpdate = t;
+  long delta = t - lastAnimUpdate;
+  animTimer += delta;
+
+  CatAnimation *transitionAnimation = NULL;
+  if (currentlyDetected && (currentAnim == &emptyAnim || currentAnim == &walkOutAnim)) {
+    transitionAnimation = &walkInAnim;
+  } else if (!currentlyDetected && (currentAnim == &idleAnim || currentAnim == &walkInAnim)) {
+    transitionAnimation = &walkOutAnim;
+  } else if (currentAnim == &walkInAnim && currAnimFrame == walkInAnim.frameCount-1 && animTimer > ANIM_FRAME_DELAY) {
+    transitionAnimation = &idleAnim;
+  } else if (currentAnim == &walkOutAnim && currAnimFrame == walkInAnim.frameCount-1 && animTimer > ANIM_FRAME_DELAY) {
+    transitionAnimation = &emptyAnim;
+  }
+  if (transitionAnimation) {
+    if (transitionAnimation == &walkInAnim && currentAnim == &walkOutAnim || transitionAnimation == &walkOutAnim && currentAnim == &walkInAnim) {
+      currAnimFrame = currentAnim->frameCount - 1 - currAnimFrame;
+    } else {
+      currAnimFrame = 0;
+    }
+
+    currentAnim = transitionAnimation;
+  }
+
+  if (animTimer > ANIM_FRAME_DELAY) {
+    animTimer -= ANIM_FRAME_DELAY;
+    currAnimFrame++;
+    if (currAnimFrame >= currentAnim->frameCount) {
+      currAnimFrame = 0;
+    }
+  }
+
+  int frameToIndex = currentAnim->reversed ? (currentAnim->frameCount - 1 - currAnimFrame) : currAnimFrame;
+
+  lcd.createChar(0, currentAnim->frames[frameToIndex].left);
+  lcd.createChar(1, currentAnim->frames[frameToIndex].right);
+
+  lcd.setCursor(14, 1);
+  lcd.write(byte(0));
+  lcd.setCursor(15, 1);
+  lcd.write(byte(1));
 }
 
 String createTimeString(long stamp) {
